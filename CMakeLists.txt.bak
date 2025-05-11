@@ -1,0 +1,80 @@
+cmake_minimum_required(VERSION 3.16.0)
+set(CMAKE_CXX_STANDARD 17)
+project(data_listener)
+
+
+find_package(catkin REQUIRED COMPONENTS
+  roscpp
+  rospy
+  rtabmap_msgs
+  sensor_msgs
+  cv_bridge
+  rtabmap_ros
+  octomap_msgs
+  std_msgs
+  geometry_msgs
+  message_generation
+)
+
+# add message file
+add_message_files(
+  FILES
+  keyframe.msg
+)
+
+generate_messages(
+  DEPENDENCIES
+  rtabmap_msgs
+  sensor_msgs
+  octomap_msgs
+  std_msgs
+  geometry_msgs
+)
+
+find_package(OpenCV REQUIRED PATHS /usr/lib/aarch64-linux-gnu/cmake/opencv4)
+
+
+find_package( PCL REQUIRED COMPONENTS common io )
+
+catkin_package(
+)
+set(RTABMAP_INCLUDE_DIRS "/opt/ros/noetic/include/rtabmap-0.21")
+
+include_directories("/usr/include/pcl-1.10")  # 手动指定 PCL 头文件路径
+
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
+
+
+include_directories("/usr/include/eigen3")
+
+include_directories(
+  ${catkin_INCLUDE_DIRS}
+  ${RTABMAP_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
+  ${octomap_INCLUDE_DIRS} 
+  "/usr/local/include"
+)
+
+catkin_install_python(PROGRAMS scripts/rgbd2pcl.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+# add_executable(mapdata_listener src/mapdata_listener.cpp)
+# target_link_libraries(mapdata_listener ${catkin_LIBRARIES})
+
+add_executable(mapdata_sender src/mapdata_sender.cpp)
+target_link_libraries(mapdata_sender ${catkin_LIBRARIES})
+
+
+add_executable(mapdata_cloud src/mapdata_cloud.cpp)
+target_link_libraries(mapdata_cloud ${catkin_LIBRARIES} 
+                                    ${rtabmap_LIBRARIES}
+                                    ${OpenCV_LIBRARIES}
+                                    ${PCL_LIBRARIES}
+                                    octomap
+                                    /opt/ros/noetic/lib/x86_64-linux-gnu/librtabmap_core.so
+                                    /opt/ros/noetic/lib/libcv_bridge.so)
+
+
