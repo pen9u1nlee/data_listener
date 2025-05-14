@@ -34,14 +34,29 @@ ros::Publisher pub;
 geometry_msgs::TransformStamped transformStamped;
 tf2_ros::TransformBroadcaster *tfb;
 
+// 图像逆时针旋转90度函数
+cv::Mat rotateImageCounterClockwise90(const cv::Mat& image) {
+    cv::Mat rotated;
+    cv::rotate(image, rotated, cv::ROTATE_90_COUNTERCLOCKWISE);
+    return rotated;
+}
+
 void keyframeCallback(const data_listener::keyframe::ConstPtr &msg) {
 
     cv_bridge::CvImageConstPtr cv_ptr_rgb;
     cv_bridge::CvImageConstPtr cv_ptr_depth;
     cv_ptr_rgb = cv_bridge::toCvCopy(msg->rgb_image, sensor_msgs::image_encodings::BGR8);
     cv_ptr_depth = cv_bridge::toCvCopy(msg->depth_image, sensor_msgs::image_encodings::TYPE_16UC1);
-    cv::Mat depth_image = cv_ptr_depth->image;
-    cv::Mat rgb_image = cv_ptr_rgb->image;
+    
+    // 旋转图像
+    cv::Mat depth_image = rotateImageCounterClockwise90(cv_ptr_depth->image);
+    cv::Mat rgb_image = rotateImageCounterClockwise90(cv_ptr_rgb->image);
+
+    // 图像尺寸发生变化，需要更新中心点
+    int new_width = depth_image.cols;
+    int new_height = depth_image.rows;
+    double new_cx = static_cast<double>(new_width) / 2.0;
+    double new_cy = static_cast<double>(new_height) / 2.0;
 
     // fill the transformStamped message body
     transformStamped.header.frame_id = "map";
@@ -66,14 +81,16 @@ void keyframeCallback(const data_listener::keyframe::ConstPtr &msg) {
             double z_camera = static_cast<double>(depth_value_raw) / depth_scale;
             if (z_camera <= 0) {continue;} // 忽略无效深度或太远/太近的点
             
-            // 计算相机坐标系下的三维坐标
-            double x_camera = (static_cast<double>(u) - cx) * z_camera / fx;
-            double y_camera = (static_cast<double>(v) - cy) * z_camera / fy;
+            // 计算相机坐标系下的三维坐标（考虑旋转后的中心点）
+            double x_camera = (static_cast<double>(u) - new_cx) * z_camera / fx;
+            double y_camera = (static_cast<double>(v) - new_cy) * z_camera / fy;
 
             pcl::PointXYZRGB pt;
-            pt.x = x_camera;
+            // 注意：旋转后坐标系发生变化，需要调整点云坐标
+            pt.x = z_camera;
             pt.y = y_camera;
-            pt.z = z_camera;
+            pt.z = -x_camera;
+            
             // 获取RGB颜色 (OpenCV Mat 是 BGR 顺序)
             cv::Vec3b color = rgb_image.at<cv::Vec3b>(v, u);
             pt.b = color[0];
